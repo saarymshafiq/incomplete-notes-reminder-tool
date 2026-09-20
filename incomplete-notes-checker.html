@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Incomplete Notes Checker</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    max-width: 720px;
+    margin: 40px auto;
+    padding: 0 20px;
+    color: #1f1f1f;
+    background: #fafaf8;
+  }
+  h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  p.subtitle { color: #666; font-size: 14px; margin-top: 0; margin-bottom: 24px; }
+  #upload-zone {
+    border: 2px dashed #b8b8b0;
+    border-radius: 12px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    background: #fff;
+    transition: border-color 0.15s;
+  }
+  #upload-zone:hover, #upload-zone.dragover { border-color: #6b6bd6; }
+  #upload-zone p { margin: 8px 0 0; color: #555; font-size: 14px; }
+  #file-list { font-size: 13px; color: #555; margin-top: 12px; }
+  #file-list p { margin: 2px 0; }
+  #controls { display: none; flex-direction: column; gap: 14px; margin-top: 24px; }
+  label { font-size: 14px; color: #555; margin-bottom: 6px; display: block; }
+  select {
+    width: 100%; padding: 10px; font-size: 14px; border-radius: 8px;
+    border: 1px solid #ccc; background: #fff;
+  }
+  .stat-row { display: flex; gap: 12px; margin-top: 4px; }
+  .stat-card {
+    background: #fff; border: 1px solid #e5e5e0; border-radius: 8px;
+    padding: 12px 16px; flex: 1;
+  }
+  .stat-card .label { font-size: 12px; color: #888; margin: 0; }
+  .stat-card .value { font-size: 18px; font-weight: 600; margin: 4px 0 0; word-break: break-all; }
+  #results { display: none; margin-top: 28px; }
+  .row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .row-head h3 { font-size: 14px; font-weight: 600; margin: 0; }
+  button {
+    font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid #ccc;
+    background: #fff; cursor: pointer;
+  }
+  button:hover { background: #f2f2ef; }
+  #email-out {
+    background: #fff; border: 1px solid #e5e5e0; border-radius: 8px;
+    padding: 14px 16px; font-size: 13px; line-height: 1.6; white-space: pre-wrap;
+    margin-bottom: 20px;
+  }
+  #open-gmail-btn {
+    width: 100%; padding: 12px; font-weight: 600; font-size: 14px;
+    background: #1a73e8; color: #fff; border: none; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+  }
+  #open-gmail-btn:hover { background: #1765cc; }
+  #send-all-section { margin-top: 32px; border-top: 1px solid #e5e5e0; padding-top: 20px; }
+  #send-all-btn {
+    width: 100%; padding: 12px; font-weight: 600; font-size: 14px;
+    background: #1f1f1f; color: #fff; border: none; display: flex;
+    align-items: center; justify-content: center; gap: 8px;
+  }
+  #send-all-btn:hover { background: #3a3a3a; }
+  #send-all-note { font-size: 12px; color: #888; margin-top: 8px; }
+  #send-all-list { font-size: 13px; color: #444; margin-top: 10px; }
+  #send-all-list p { margin: 3px 0; }
+  #override-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  #override-row input {
+    flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid #ccc; font-size: 13px;
+  }
+  #override-row label { margin: 0; white-space: nowrap; }
+  #config-note {
+    font-size: 12px; color: #888; background: #fff8e6; border: 1px solid #f0dca0;
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Incomplete progress notes checker</h1>
+<p class="subtitle">Upload your appointment status report, pick a clinician, send the reminder email.</p>
+
+<div id="config-note">
+  This is a demo/portfolio version. Fill in <code>CONFIG</code> at the top of the script
+  with your own organization's domain, CC address, and sender details before use.
+</div>
+
+<div id="upload-zone">
+  <div style="font-size:22px;">&#128194;</div>
+  <p>Drop or click to choose appointment status report(s) (.xlsx)</p>
+  <input type="file" id="file-input" accept=".xlsx" multiple style="display:none;" />
+</div>
+
+<div id="file-list"></div>
+
+<div id="controls">
+  <div>
+    <label for="clinician-select">Clinician</label>
+    <select id="clinician-select"></select>
+  </div>
+  <div class="stat-row">
+    <div class="stat-card">
+      <p class="label">Incomplete notes</p>
+      <p class="value" id="count-out">0</p>
+    </div>
+    <div class="stat-card">
+      <p class="label">To</p>
+      <p class="value" id="to-out" style="font-size:13px;">—</p>
+    </div>
+  </div>
+  <div id="override-row">
+    <label for="email-override">Override recipient email:</label>
+    <input type="email" id="email-override" placeholder="name@example.com" />
+  </div>
+</div>
+
+<div id="results">
+  <div class="row-head">
+    <h3>Email preview</h3>
+    <button id="copy-email-btn">Copy</button>
+  </div>
+  <div id="email-out"></div>
+
+  <button id="open-gmail-btn">Open in Gmail</button>
+</div>
+
+<div id="send-all-section" style="display:none;">
+  <h3 style="font-size:14px; font-weight:600; margin-bottom:8px;">Send to everyone at once</h3>
+  <button id="send-all-btn">Open Gmail tabs for all clinicians with incomplete notes</button>
+  <p id="send-all-note">Opens one pre-filled Gmail tab per clinician, 5 seconds apart — enough time to review and send each one before the next opens. If Chrome blocks the pop-ups, click the "popup blocked" icon in the address bar and choose "Always allow", then click the button again.</p>
+  <div id="send-all-list"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// CONFIG — replace with your own organization's details before use.
+// Nothing below this block contains any real names, emails, or org details;
+// this is a sanitized portfolio version of a tool originally built for a
+// real practice's billing workflow.
+// ---------------------------------------------------------------------------
+const CONFIG = {
+  // Domain used to guess a clinician's email from their first name
+  // (e.g. "Jane Doe" -> "jane@yourdomain.com")
+  emailDomain: 'example.com',
+
+  // Manual overrides for clinicians whose email doesn't match the
+  // first-name-guess pattern (e.g. a nickname, or a different domain)
+  emailOverrides: {
+    // 'firstname lastname': 'actual.email@example.com'
+  },
+
+  // Clinicians to exclude entirely from the reminder list
+  excludedClinicians: [],
+
+  // Always CC'd on every reminder email (e.g. a supervisor or office manager)
+  ccAddress: 'supervisor@example.com',
+
+  // Signature block appended to every email
+  senderName: 'Your Name',
+  senderTitle: 'Billing & Insurance Coordinator',
+  orgName: 'Your Organization'
+};
+// ---------------------------------------------------------------------------
+
+let rows = [];
+
+const zone = document.getElementById('upload-zone');
+const input = document.getElementById('file-input');
+zone.addEventListener('click', () => input.click());
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+input.addEventListener('change', e => handleFiles(e.target.files));
+
+function excelDateToJS(val) {
+  if (typeof val === 'number') {
+    const d = XLSX.SSF.parse_date_code(val);
+    return new Date(d.y, d.m - 1, d.d, d.H || 0, d.M || 0);
+  }
+  const parsed = new Date(val);
+  return isNaN(parsed) ? null : parsed;
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  let s = d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+  let h = d.getHours(), m = d.getMinutes();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  s += ' ' + h + ':' + String(m).padStart(2, '0') + ' ' + ampm;
+  return s;
+}
+
+async function handleFiles(files) {
+  const listEl = document.getElementById('file-list');
+  listEl.innerHTML = '';
+  rows = [];
+
+  for (const file of files) {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    rows = rows.concat(data);
+    const p = document.createElement('p');
+    p.textContent = file.name + ' — ' + data.length + ' rows';
+    listEl.appendChild(p);
+  }
+
+  buildClinicianList();
+  document.getElementById('controls').style.display = 'flex';
+}
+
+// CPT codes that require a progress note (intake + ongoing therapy sessions)
+function isEligibleCode(code) {
+  if (!code) return false;
+  const c = String(code).trim();
+  return c === '90837' || c === '90791';
+}
+
+function isIncompleteStatus(status) {
+  if (!status) return false;
+  const s = String(status).trim().toUpperCase();
+  return s === 'UNLOCKED' || s === 'NO NOTE';
+}
+
+function getFilteredRows(clinician) {
+  return rows.filter(r => {
+    const clin = (r['Clinician'] || '').toString().trim();
+    if (clin !== clinician) return false;
+    if (!isEligibleCode(r['Billing Code'])) return false;
+    if (!isIncompleteStatus(r['Progress Note Status'])) return false;
+    return true;
+  });
+}
+
+function clinicianEmail(name) {
+  const key = name.trim().toLowerCase();
+  if (CONFIG.emailOverrides[key]) return CONFIG.emailOverrides[key];
+  const first = name.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z]/g, '');
+  return first + '@' + CONFIG.emailDomain;
+}
+
+function buildClinicianList() {
+  const allClinicians = [...new Set(rows.map(r => (r['Clinician'] || '').toString().trim()).filter(Boolean))]
+    .filter(c => !CONFIG.excludedClinicians.map(x => x.toLowerCase()).includes(c.toLowerCase()));
+  const withIncomplete = allClinicians.filter(c => getFilteredRows(c).length > 0).sort();
+
+  const sel = document.getElementById('clinician-select');
+  sel.innerHTML = '';
+  if (!withIncomplete.length) {
+    const opt = document.createElement('option');
+    opt.textContent = 'No incomplete notes found';
+    sel.appendChild(opt);
+    document.getElementById('results').style.display = 'none';
+    return;
+  }
+  withIncomplete.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c + ' (' + getFilteredRows(c).length + ')';
+    sel.appendChild(opt);
+  });
+  sel.removeEventListener('change', render);
+  sel.addEventListener('change', render);
+  document.getElementById('email-override').removeEventListener('input', updateOverride);
+  document.getElementById('email-override').addEventListener('input', updateOverride);
+  render();
+
+  const sendAllSection = document.getElementById('send-all-section');
+  sendAllSection.style.display = 'block';
+  const listEl = document.getElementById('send-all-list');
+  listEl.innerHTML = '';
+  withIncomplete.forEach(c => {
+    const p = document.createElement('p');
+    p.textContent = c + ' — ' + getFilteredRows(c).length + ' note(s) — ' + clinicianEmail(c);
+    listEl.appendChild(p);
+  });
+}
+
+let currentTo = '', currentCc = CONFIG.ccAddress, currentSubject = '', currentBody = '';
+
+function updateOverride() {
+  const val = document.getElementById('email-override').value.trim();
+  if (val) currentTo = val;
+  document.getElementById('to-out').textContent = currentTo;
+  updatePreview();
+}
+
+function updatePreview() {
+  const previewText = 'To: ' + currentTo + '\nCc: ' + currentCc + '\nSubject: ' + currentSubject + '\n\n' + currentBody;
+  document.getElementById('email-out').textContent = previewText;
+}
+
+function render() {
+  const clinician = document.getElementById('clinician-select').value;
+  if (!clinician) return;
+  const filtered = getFilteredRows(clinician);
+
+  filtered.sort((a, b) => {
+    const da = excelDateToJS(a['Date of Service']);
+    const db = excelDateToJS(b['Date of Service']);
+    return (da || 0) - (db || 0);
+  });
+
+  document.getElementById('count-out').textContent = filtered.length;
+
+  currentTo = clinicianEmail(clinician);
+  document.getElementById('email-override').value = '';
+  document.getElementById('to-out').textContent = currentTo;
+
+  const lines = filtered.map(r => {
+    const d = excelDateToJS(r['Date of Service']);
+    return '- ' + (r['Client'] || 'Unknown client') + ' — ' + fmtDate(d) + ' (' + r['Billing Code'] + ')';
+  });
+  const listText = lines.join('\n');
+
+  currentSubject = 'Incomplete progress notes — ' + clinician;
+  currentBody = buildEmailBody(listText);
+
+  updatePreview();
+  document.getElementById('results').style.display = 'block';
+}
+
+function buildEmailBody(listText) {
+  return 'Good afternoon, \n\n' +
+    'The following notes are incomplete and/or unlocked. Please complete them at your earliest convenience. If any sessions need to be marked as late cancels/no shows, please let me know and I\'ll update them.\n\n' +
+    'Please remember that all notes must be completed within 72 hours of sessions. \n\n' +
+    listText + '\n\n' +
+    '--\n' +
+    'Best Regards,\n' +
+    CONFIG.senderName + '\n' +
+    CONFIG.senderTitle + '\n' +
+    CONFIG.orgName;
+}
+
+document.getElementById('copy-email-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText(document.getElementById('email-out').textContent);
+});
+
+function gmailUrl(to, cc, subject, body) {
+  return 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(to) +
+    '&cc=' + encodeURIComponent(cc) +
+    '&su=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(body);
+}
+
+document.getElementById('open-gmail-btn').addEventListener('click', () => {
+  window.open(gmailUrl(currentTo, currentCc, currentSubject, currentBody), '_blank');
+});
+
+document.getElementById('send-all-btn').addEventListener('click', () => {
+  const allClinicians = [...new Set(rows.map(r => (r['Clinician'] || '').toString().trim()).filter(Boolean))]
+    .filter(c => !CONFIG.excludedClinicians.map(x => x.toLowerCase()).includes(c.toLowerCase()));
+  const withIncomplete = allClinicians.filter(c => getFilteredRows(c).length > 0).sort();
+
+  const btn = document.getElementById('send-all-btn');
+  btn.disabled = true;
+
+  withIncomplete.forEach((clinician, i) => {
+    setTimeout(() => {
+      const filtered = getFilteredRows(clinician).sort((a, b) => {
+        const da = excelDateToJS(a['Date of Service']);
+        const db = excelDateToJS(b['Date of Service']);
+        return (da || 0) - (db || 0);
+      });
+      const lines = filtered.map(r => {
+        const d = excelDateToJS(r['Date of Service']);
+        return '- ' + (r['Client'] || 'Unknown client') + ' — ' + fmtDate(d) + ' (' + r['Billing Code'] + ')';
+      });
+      const body = buildEmailBody(lines.join('\n'));
+      const subject = 'Incomplete progress notes — ' + clinician;
+      const to = clinicianEmail(clinician);
+      window.open(gmailUrl(to, currentCc, subject, body), '_blank');
+      btn.textContent = 'Opened ' + (i + 1) + ' of ' + withIncomplete.length + ' — next in 5s...';
+      if (i === withIncomplete.length - 1) {
+        setTimeout(() => {
+          btn.textContent = 'Open Gmail tabs for all clinicians with incomplete notes';
+          btn.disabled = false;
+        }, 1000);
+      }
+    }, i * 5000);
+  });
+});
+</script>
+</body>
+</html>
